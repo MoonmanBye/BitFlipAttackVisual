@@ -9,6 +9,23 @@ import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss, L1Loss
 from torch.optim import SGD, Adam
 
+from pytorch_grad_cam import GradCAM, \
+    ScoreCAM, \
+    GradCAMPlusPlus, \
+    AblationCAM, \
+    XGradCAM, \
+    EigenCAM, \
+    EigenGradCAM, \
+    LayerCAM, \
+    FullGrad
+from pytorch_grad_cam import GuidedBackpropReLUModel
+from pytorch_grad_cam.utils.image import show_cam_on_image, \
+    deprocess_image, \
+    preprocess_image
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+import os
+
+
 
 parser = argparse.ArgumentParser(description='Improving stealthy BFA robustness via output code matching')
 parser.add_argument('--data_dir', type=str, default='data/')
@@ -54,6 +71,32 @@ else:
     device = torch.device('cuda')
     print('Using gpu: ' + args.gpu)
 
+def location(LRP, keep_batch=False):
+    l = LRP.shape[2]
+    n = LRP.shape[0]
+    mask = torch.ones_like(LRP)
+    k = (l // 7)
+
+    LRP = LRP / LRP.max()
+    mask[:, :, k:-k, k:-k] = -1 * torch.ones((l - 2 * k, l - 2 * k), dtype=torch.float32).cuda()
+
+    #mask[:, :, k:-k, k:-k] = torch.zeros((l - 2 * k, l - 2 * k), dtype=torch.float32).cuda()
+
+
+
+    LRP = LRP.reshape(n, -1)
+    mask = mask.reshape(n, -1)
+
+    loss1 = LRP.mean(dim=1)
+
+    print('meanLRP:', loss1)
+
+    loss = ((mask - LRP) ** 2).mean(dim=1)
+
+    if keep_batch:
+        return loss
+    loss = loss.mean()
+    return loss    
 
 def train(loader, model, criterion, optimizer, epoch, C):
     batch_time = AverageMeter('Time', ':6.3f')
@@ -88,8 +131,20 @@ def train(loader, model, criterion, optimizer, epoch, C):
         losses.update(loss.item(), inputs.size(0))
         top1.update(acc1.item(), inputs.size(0))
         top5.update(acc5.item(), inputs.size(0))
+        
+        labels = [ClassifierOutputTarget(i.item()) for i in targets]
+        grayscale_cam = cam(input_tensor=inputs, targets=labels)
+        
+        cam2 = torch.tensor(grayscale_cam)
+        if len(cam2.shape) != 4:
+            cam2 = cam2.unsqueeze(1)
+        cam2 = cam2.sum(dim=1, keepdim=True)
 
-        loss.backward()
+        gcam_loss = location(cam2)
+
+        loss_total = loss + * gcam_loss
+        
+        loss_total.backward()
         optimizer.step()
 
         batch_time.update(time.time() - end)
@@ -157,6 +212,8 @@ def main():
         C = torch.tensor(np.eye(args.num_classes)).to(device)
     model = models.__dict__[args.arch](n_output, args.bits, args.output_act)
     model = nn.DataParallel(model, gpu_list).to(device) if len(gpu_list) > 1 else nn.DataParallel(model).to(device)
+    #add for G-Cam
+    target_layers = [model.features[-1]]
     
     if args.opt == 'adam':
         optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -183,7 +240,9 @@ def main():
             else:
                 init_logfile(log_filename, "epoch\ttime\tlr\ttrain loss\ttrain acc\ttestloss\ttest acc")
                 start_epoch, best_acc1 = 0, 0
-
+        
+        cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+        
         for epoch in range(start_epoch, args.epochs):
             lr = lr_scheduler(optimizer, epoch, args)
 
