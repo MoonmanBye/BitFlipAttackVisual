@@ -225,7 +225,7 @@ def main():
     model = models.__dict__[args.arch](n_output, args.bits, args.output_act)
     model = nn.DataParallel(model, gpu_list).to(device) if len(gpu_list) > 1 else nn.DataParallel(model).to(device)
     #add for G-Cam
-    model.load_state_dict(torch.load('cleanmodel.pth', map_location=device)
+    model.load_state_dict(torch.load('cleanmodel.pth', map_location=device))
     target_layers = [model.module.layer3[2].conv2]
     
     if args.opt == 'adam':
