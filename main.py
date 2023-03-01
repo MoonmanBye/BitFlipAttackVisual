@@ -252,7 +252,7 @@ def main():
                 init_logfile(log_filename, "epoch\ttime\tlr\ttrain loss\ttrain acc\ttestloss\ttest acc")
                 start_epoch, best_acc1 = 0, 0
         
-        cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+        #cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
         
         for epoch in range(start_epoch, args.epochs):
             lr = lr_scheduler(optimizer, epoch, args)
