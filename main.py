@@ -142,7 +142,7 @@ def train(loader, model, criterion, optimizer, epoch, C):
 
         gcam_loss = location(cam2)
 
-        loss_total = loss + * gcam_loss
+        loss_total = loss +  gcam_loss
         
         loss_total.backward()
         optimizer.step()
