@@ -61,8 +61,15 @@ if not os.path.exists(args.outdir):
 if args.gpu:
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
+#set random seed
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
+torch.cuda.manual_seed_all(args.seed)
+random.seed(args.seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+
 gpu_list = [int(i) for i in args.gpu.strip().split(",")] if args.gpu is not "0" else [0]
 if args.gpu == "-1":
     device = torch.device('cpu')
@@ -131,6 +138,9 @@ def train(loader, model, criterion, optimizer, epoch, C):
         losses.update(loss.item(), inputs.size(0))
         top1.update(acc1.item(), inputs.size(0))
         top5.update(acc5.item(), inputs.size(0))
+        
+        target_layers = [model.features[-1]]
+        cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
         
         labels = [ClassifierOutputTarget(i.item()) for i in targets]
         grayscale_cam = cam(input_tensor=inputs, targets=labels)
@@ -213,7 +223,7 @@ def main():
     model = models.__dict__[args.arch](n_output, args.bits, args.output_act)
     model = nn.DataParallel(model, gpu_list).to(device) if len(gpu_list) > 1 else nn.DataParallel(model).to(device)
     #add for G-Cam
-    target_layers = [model.features[-1]]
+    #target_layers = [model.features[-1]]
     
     if args.opt == 'adam':
         optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
