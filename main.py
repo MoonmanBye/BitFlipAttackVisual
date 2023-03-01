@@ -142,10 +142,10 @@ def train(loader, model, criterion, optimizer, epoch, C,target_layers):
         
         target_layers = target_layers
         #target_layers = [model.module.layer3[2].conv2]
-        #cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+        cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
         
         labels = [ClassifierOutputTarget(i.item()) for i in targets]
-        grayscale_cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True, input_tensor=inputs, targets=labels)
+        grayscale_cam = cam(input_tensor=inputs, targets=labels)
         
         cam2 = torch.tensor(grayscale_cam)
         if len(cam2.shape) != 4:
