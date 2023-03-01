@@ -228,6 +228,8 @@ def main():
     model.load_state_dict(torch.load('cleanmodel.pth', map_location=device))
     target_layers = [model.module.layer3[2].conv2]
     
+    cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+    
     if args.opt == 'adam':
         optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     else:
@@ -254,7 +256,7 @@ def main():
                 init_logfile(log_filename, "epoch\ttime\tlr\ttrain loss\ttrain acc\ttestloss\ttest acc")
                 start_epoch, best_acc1 = 0, 0
         
-        #cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+        
         
         for epoch in range(start_epoch, args.epochs):
             lr = lr_scheduler(optimizer, epoch, args)
