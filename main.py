@@ -106,7 +106,7 @@ def location(LRP, keep_batch=False):
     loss = loss.mean()
     return loss    
 
-def train(loader, model, criterion, optimizer, epoch, C):
+def train(loader, model, criterion, optimizer, epoch, C,target_layers):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -140,11 +140,12 @@ def train(loader, model, criterion, optimizer, epoch, C):
         top1.update(acc1.item(), inputs.size(0))
         top5.update(acc5.item(), inputs.size(0))
         
-        target_layers = [model.module.layer3[2].conv2]
-        cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+        target_layers = target_layers
+        #target_layers = [model.module.layer3[2].conv2]
+        #cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
         
         labels = [ClassifierOutputTarget(i.item()) for i in targets]
-        grayscale_cam = cam(input_tensor=inputs, targets=labels)
+        grayscale_cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True, input_tensor=inputs, targets=labels)
         
         cam2 = torch.tensor(grayscale_cam)
         if len(cam2.shape) != 4:
@@ -224,7 +225,8 @@ def main():
     model = models.__dict__[args.arch](n_output, args.bits, args.output_act)
     model = nn.DataParallel(model, gpu_list).to(device) if len(gpu_list) > 1 else nn.DataParallel(model).to(device)
     #add for G-Cam
-    #target_layers = [model.features[-1]]
+    model.load_state_dict(torch.load('cleanmodel.pth', map_location=device)
+    target_layers = [model.module.layer3[2].conv2]
     
     if args.opt == 'adam':
         optimizer = Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -258,7 +260,7 @@ def main():
             lr = lr_scheduler(optimizer, epoch, args)
 
             before = time.time()
-            train_loss, train_acc = train(train_loader, model, criterion, optimizer, epoch, C)
+            train_loss, train_acc = train(train_loader, model, criterion, optimizer, epoch, C, target_layers)
             test_loss, test_acc = test(test_loader, model, criterion, C)
             after = time.time()
 
