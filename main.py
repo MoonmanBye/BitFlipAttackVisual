@@ -139,7 +139,7 @@ def train(loader, model, criterion, optimizer, epoch, C):
         top1.update(acc1.item(), inputs.size(0))
         top5.update(acc5.item(), inputs.size(0))
         
-        target_layers = [model.features[-1]]
+        target_layers = [model.model.module.layer3[2].conv2]
         cam = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
         
         labels = [ClassifierOutputTarget(i.item()) for i in targets]
